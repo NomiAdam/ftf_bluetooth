@@ -1,0 +1,29 @@
+name: ftf_bluetooth
+description: "A new Flutter project."
+publish_to: "none"
+
+version: 1.0.0+1
+
+environment:
+  sdk: ">=3.4.1 <4.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  cupertino_icons: ^1.0.6
+  uuid: 4.4.0
+  flutter_blue_plus: 1.32.8
+  pretty_qr_code: 3.3.0
+  qr_code_scanner: 1.0.1
+  flutter_ble_peripheral:
+    git:
+      url: https://github.com/tiago-bacelar/flutter_ble_peripheral.git
+      ref: master
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^3.0.0
+
+flutter:
+  uses-material-design: true
