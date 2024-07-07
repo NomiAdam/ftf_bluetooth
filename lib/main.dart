@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
 import 'dart:typed_data';
@@ -7,10 +8,21 @@ import 'package:flutter/material.dart';
 import 'package:flutter_ble_peripheral/flutter_ble_peripheral.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:ftf_bluetooth/qr_view.dart';
+import 'package:ftf_bluetooth/user.dart';
 import 'package:pretty_qr_code/pretty_qr_code.dart';
 import 'package:uuid/uuid.dart';
 
 final _messangerKey = GlobalKey<ScaffoldMessengerState>();
+
+extension splitWriteExtension on BluetoothCharacteristic {
+  Future<void> splitWrite(List<int> value, {int timeout = 15}) async {
+    int chunk = device.mtuNow - 5; // 5 bytes ble overhead
+    for (int i = 0; i < value.length; i += chunk) {
+      List<int> subvalue = value.sublist(i, min(i + chunk, value.length));
+      await write(subvalue, withoutResponse: false, timeout: timeout);
+    }
+  }
+}
 
 void main() {
   runApp(const MyApp());
@@ -45,8 +57,10 @@ class MyHomePage extends StatefulWidget {
 const uuid = const Uuid();
 
 class _MyHomePageState extends State<MyHomePage> {
-  final deviceUuid = uuid.v4();
-  final characteristicUuid = uuid.v4();
+  // final deviceUuid = uuid.v4();
+  // final characteristicUuid = uuid.v4();
+  final deviceUuid = '8605f6eb-0645-410d-a843-f4649e5f9a67';
+  final characteristicUuid = 'adfe15c9-cbe1-43f7-ab7d-10f7cf6b6fcf';
 
   late final AdvertiseData advertiseData;
   final FlutterBlePeripheral blePeripheral = FlutterBlePeripheral();
@@ -70,7 +84,8 @@ class _MyHomePageState extends State<MyHomePage> {
   String _receivedData = "";
   bool _isSupported = false;
 
-  String _scannedRemoteDeviceUuid = "";
+  // String _scannedRemoteDeviceUuid = "";
+  String _scannedRemoteDeviceUuid = '8605f6eb-0645-410d-a843-f4649e5f9a67';
 
   BluetoothDevice? _remoteDevice;
   List<BluetoothService> _remoteServices = [];
@@ -124,12 +139,27 @@ class _MyHomePageState extends State<MyHomePage> {
         await FlutterBluePlus.turnOn();
       }
 
+      List<int> growableList = List.empty(growable: true);
+
       _dataSub = FlutterBlePeripheral().getDataReceived.listen((data) {
         print('DATA RECEIVED');
         print(data.characteristicUUID);
-        setState(() {
-          _receivedData = String.fromCharCodes(data.value);
-        });
+
+        try {
+          growableList.addAll(data.value);
+
+          final decoded = utf8.decode(growableList);
+
+          if (decoded.endsWith(';;')) {
+            growableList = List.empty(growable: true);
+            setState(() {
+              _receivedData = decoded;
+            });
+          }
+        } catch (e) {
+          print('DECODE ERROR');
+          print(e);
+        }
       });
 
       setState(() {
@@ -242,7 +272,58 @@ class _MyHomePageState extends State<MyHomePage> {
           if (c.properties.write) {
             print('WRITING');
             print(c.characteristicUuid);
-            await c.write(Uint8List.fromList(_randomData.codeUnits));
+            // await c.write(Uint8List.fromList(_randomData.codeUnits));
+
+            final now = DateTime.now();
+
+            final user = User(
+                sex: 'MALE',
+                lastName: 'Doe Doe Doe',
+                address: Address(
+                    city: 'Praha',
+                    street: 'Street name',
+                    zip: '12312312',
+                    floor: '3123'),
+                firstName: 'John',
+                middleName: 'John Doe',
+                birthDate: DateTime.now(),
+                bornAt: 'Prague',
+                id: '8605f6eb-0645-410d-a843-f4649e5f9a67',
+                maritalStatus: 'SINGLE',
+                nationality: 'CONGO',
+                phoneNumber: '123128o312789312789312',
+                phoneNumberPrefix: '12312312',
+                parents: [
+                  User(
+                      sex: 'MALE',
+                      lastName: 'Doe Doe Doe',
+                      address: Address(
+                          city: 'Praha',
+                          street: 'Street name',
+                          zip: '12312312',
+                          floor: '3123'),
+                      firstName: 'John',
+                      middleName: 'John Doe Senior',
+                      birthDate: DateTime.now(),
+                      bornAt: 'Prague',
+                      id: '8605f6eb-0645-410d-a843-f4649e5f9a67',
+                      maritalStatus: 'SINGLE',
+                      nationality: 'CONGO',
+                      phoneNumber: '123128o312789312789312',
+                      phoneNumberPrefix: '12312312',
+                      parents: [],
+                      image: '')
+                ],
+                image: '');
+
+            // await c.splitWrite(Uint8List.fromList(_randomData.codeUnits));
+
+            final jsonString = '${jsonEncode(user.toJson())};;';
+
+            await c.splitWrite(Uint8List.fromList(jsonString.codeUnits));
+
+            print(
+                'WRITING FINISHED IN: ${now.difference(DateTime.now()).inMilliseconds / 1000} seconds');
           }
         });
       }
